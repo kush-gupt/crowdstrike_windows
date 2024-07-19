@@ -1,0 +1,25 @@
+---
+- name: Manage CrowdStrike driver file on windows Server
+  hosts: windows_servers
+  tasks:
+    - name: Ensure CrowdStrike directory exists
+      ansible.windows.win_file:
+        path: C:\ansible.windows.dows\System32\drivers\CrowdStrike
+        state: directory
+
+    - name: Find and delete the file matching C-00000291*.sys
+      ansible.windows.win_find:
+        paths: C:\ansible.windows.dows\System32\drivers\CrowdStrike
+        patterns: C-00000291*.sys
+      register: found_files
+
+    - name: Delete the found files
+      ansible.windows.win_file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ found_files.files }}"
+
+    - name: Reboot the host normally
+      ansible.windows.win_reboot:
+        msg: "Rebooting the host as part of the Ansible playbook task."
+        reboot_timeout: 600
