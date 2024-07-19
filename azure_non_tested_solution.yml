@@ -1,0 +1,43 @@
+---
+# Follows the steps on Azure status here: https://azure.status.microsoft/en-gb/status
+# ```
+# Update as of 10:30 UTC on 19 July 2024:
+# We have received reports of successful recovery from some customers attempting multiple Virtual Machine restart operations on affected Virtual Machines. 
+# Customers can attempt to do so as follows:
+# - Using the Azure Portal - attempting 'Restart' on affected VMs
+# - Using the Azure CLI or Azure Shell (https://shell.azure.com)
+# https://learn.microsoft.com/en-us/cli/azure/vm?view=azure-cli-latest#az-vm-restart
+# We have received feedback from customers that several reboots (as many as 15 have been reported)
+# may be required, but overall feedback is that reboots are an effective troubleshooting step 
+# at this stage.
+# ```
+- name: Restart Windows VMs in Azure
+  hosts: localhost
+  gather_facts: false
+  vars:
+    region: eastus
+  # client_id: X
+  # secret: X
+  # subscription_id: X
+  # tenant: X
+
+  tasks:
+    # Note: this will cost network overhead for each resource group. Suggest use this when name is set.
+    # Uncommented section gets all resource groups with resources listed
+    - name: Get resource groups with windows VMs
+      azure_rm_resourcegroup_info:
+      # name: {{ rg_with_windows_vms }}
+        list_resources: true
+    # loop: {{ rg_with_windows_vms }}
+      register: {{rg_with_windows_vms }}
+
+    - name: debug rg
+      debug:
+        msg: {{ rg_with_windows_vms }}
+
+    # - name: Restart
+    #   azure_rm_virtualmachine:
+    #     resource_group: {{ rg_with_windows_vms }}
+    #     name: {{ item.name }}
+    #     restarted: true
+    #   loop: {{ windows_vms_list }}
