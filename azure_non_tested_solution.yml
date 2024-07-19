@@ -29,11 +29,11 @@
       # name: {{ rg_with_windows_vms }}
         list_resources: true
     # loop: {{ rg_with_windows_vms }}
-      register: {{rg_with_windows_vms }}
+      register: rg_with_windows_vms
 
     - name: debug rg
       debug:
-        msg: {{ rg_with_windows_vms }}
+        msg: "{{ rg_with_windows_vms }}"
 
     # - name: Restart
     #   azure_rm_virtualmachine:
