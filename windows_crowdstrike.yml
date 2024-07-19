@@ -1,6 +1,6 @@
 ---
 - name: Manage CrowdStrike driver file on windows Server
-  hosts: Windows_servers
+  hosts: windows
   tasks:
     - name: Ensure CrowdStrike directory exists
       ansible.windows.win_file:
