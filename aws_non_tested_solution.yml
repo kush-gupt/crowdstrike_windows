@@ -1,0 +1,96 @@
+---
+- name: Detach, Fix, and Reattach Volume
+  hosts: localhost
+  gather_facts: false
+  vars:
+    region: us-west-2
+    affected_instance_id: i-xxxxxxxx
+    helper_instance_id: i-yyyyyyyy
+    volume_id: vol-xxxxxxxx
+    device_name: /dev/sdf
+    mount_point: /mnt/recovery
+    winpe_mount_point: /mnt/winpe
+
+  tasks:
+    - name: Detach the volume from the affected instance
+      amazon.aws.ec2_vol:
+        region: "{{ region }}"
+        id: "{{ volume_id }}"
+        instance: "{{ affected_instance_id }}"
+        state: absent
+
+    - name: Attach the volume to the helper instance
+      amazon.aws.ec2_vol_info:
+        region: "{{ region }}"
+        instance: "{{ helper_instance_id }}"
+        volume: "{{ volume_id }}"
+        device_name: "{{ device_name }}"
+        state: present
+
+    - name: Wait for the volume to be attached
+      amazon.aws.ec2_vol_info:
+        region: "{{ region }}"
+        filters:
+          volume-id: "{{ volume_id }}"
+      register: vol_info
+      until: vol_info.volumes[0].attachments | length > 0
+      retries: 5
+      delay: 10
+
+    - name: Mount the volume on the helper instance
+      ansible.builtin.shell: |
+        sudo mkdir -p {{ mount_point }}
+        sudo mount {{ device_name }}1 {{ mount_point }}
+      delegate_to: "{{ helper_instance_id }}"
+
+    - name: Mount WinPE image
+      ansible.builtin.shell: |
+        sudo wimlib-imagex mount {{ mount_point }}/Windows/Boot/WinPE.wim 1 {{ winpe_mount_point }}
+      delegate_to: "{{ helper_instance_id }}"
+
+    - name: Edit startnet.cmd
+      ansible.builtin.shell: |
+        echo "del C:\\Windows\\System32\\drivers\\CrowdStrike\\C-00000291*.sys" | sudo tee -a {{ winpe_mount_point }}/Windows/System32/startnet.cmd
+        echo "exit" | sudo tee -a {{ winpe_mount_point }}/Windows/System32/startnet.cmd
+      delegate_to: "{{ helper_instance_id }}"
+
+    - name: Unmount WinPE image
+      ansible.builtin.shell: |
+        sudo wimlib-imagex unmount {{ winpe_mount_point }} --commit
+      delegate_to: "{{ helper_instance_id }}"
+
+    - name: Unmount the volume from the helper instance
+      ansible.builtin.shell: |
+        sudo umount {{ mount_point }}
+      delegate_to: "{{ helper_instance_id }}"
+
+    - name: Detach the volume from the helper instance
+      amazon.aws.ec2_vol:
+        region: "{{ region }}"
+        instance: "{{ helper_instance_id }}"
+        volume: "{{ volume_id }}"
+        state: absent
+
+    - name: Reattach the volume to the affected instance
+      amazon.aws.ec2_vol:
+        region: "{{ region }}"
+        instance: "{{ affected_instance_id }}"
+        volume: "{{ volume_id }}"
+        device_name: /dev/sda1
+        state: present
+
+    - name: Wait for the volume to be attached
+      amazon.aws.ec2_vol_info:
+        region: "{{ region }}"
+        filters:
+          volume-id: "{{ volume_id }}"
+      register: vol_info
+      until: vol_info.volumes[0].attachments | length > 0
+      retries: 5
+      delay: 10
+
+    - name: Start the affected instance
+      amazon.aws.ec2_instance:
+        region: "{{ region }}"
+        instance_ids: "{{ affected_instance_id }}"
+        state: started
